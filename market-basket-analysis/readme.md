@@ -1,4 +1,4 @@
-# Read Me
+# About The Project
 Utilize market basket analysis to identify customer purchase patterns to increase sales. 
 <br>
 Its primary objective is to identify products and categories that are more likely to be purchased together.
