@@ -4,6 +4,8 @@ Utilize market basket analysis to identify customer purchase patterns to increas
 Its primary objective is to identify products and categories that are more likely to be purchased together.
 
 ## Getting Started
+Data source: https://www.kaggle.com/sulmansarwar/transactions-from-a-bakery
+
 The Python packages used are as follows:
 * pandas
 * numpy
