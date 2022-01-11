@@ -3,4 +3,4 @@ Personal Website: https://www.jialinwu.net
 
 * Market Basket Analysis
 * Natural Language Processing
-* Regression Analysis
+* Customer Segmentation
