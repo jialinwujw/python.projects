@@ -1,16 +1,26 @@
-# About The Project
+# About The Analysis
 Utilize the sales forecast technique to estimate revenues for a period of time (such as a quarter or year).<br>
 With a well-designed sales forecast, companies can devise more effective strategies to counteract risk and mitigate losses.
 
-## Getting Started
-Data source: 
+## Project
+### Data
+https://www.kaggle.com/manjeetsingh/retaildataset
 
-The Python packages used are as follows:
+### Descirption
+
+
+### Python Package
 * pandas
 * numpy
 * matplotlib
 * seaborn
+* sklearn
+* statsmodels
 
-
-## Outputs
-
+### Outputs
+* Linear Regression in SKLearn
+* Linear Regression in Statsmodels
+* Regression Tree in Decision Tree
+* Regression Tree in Random Forest
+<br>
+<strong>EDITING...</strong>
