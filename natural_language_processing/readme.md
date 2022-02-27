@@ -21,6 +21,40 @@ This dataset consists of wine reviews, including information about their variety
 * sklearn
 * wordcloud
 
+```sh
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+%matplotlib inline
+import seaborn as sns
+
+import re # https://www.w3schools.com/python/python_regex.asp
+
+import nltk
+# NLTK was not fully installed by pip, so many components were absent, resulting in some features not working. 
+# By running ntlk.download(), a new window will open. From there, you can choose which additional packages to install.
+nltk.download()
+from nltk.corpus import stopwords
+from nltk.corpus import wordnet as wn
+from nltk.tokenize import word_tokenize
+from nltk.sentiment.vader import SentimentIntensityAnalyzer
+from nltk.stem.wordnet import WordNetLemmatizer
+
+from textblob import TextBlob
+from textblob import Word
+
+import gensim
+import gensim.corpora as corpora
+
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.decomposition import NMF
+
+from wordcloud import WordCloud, STOPWORDS, ImageColorGenerator
+
+import warnings
+warnings.filterwarnings('ignore') # Never print matching warnings
+```
+
 ### Outputs
 A process of **NMF topic modeling** is employed to uncover latent topical patterns. This application generates word distributions from a corpus of documents. Based on the results, it can determine whether there are any distinct themes present within the text.
 <br><br>
