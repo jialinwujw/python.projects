@@ -9,3 +9,6 @@ Personal Website: https://www.jialinwu.net
   - Utilize customer segmentation analysis to group a company's customers according to similar characteristics. Segmenting customers is crucial for maximizing each customer's value and optimizing marketing campaigns.
 * **Sales Forecasting**
   - Utilize the sales forecast technique to estimate revenues for a period of time (such as a quarter or year). With a well-designed sales forecast, companies can devise more effective strategies to counteract risk and mitigate losses.
+* **Cohort Analysis**
+  - Utilize cohort analysis to evaluate customer behavior throughout the customer lifecycle, which can uncover issues that are not readily apparent by using overall metrics, especially when marketing methods and activities are constantly changing. It will allow companies to take informed and timely decisions regarding churn reduction and revenue enhancement.
+
