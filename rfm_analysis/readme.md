@@ -28,10 +28,19 @@ warnings.filterwarnings('ignore')
 ```
 
 ### Outputs
-Customer Segmentation based on RFM Score (R, F, M Tier Concentration)
+**R, F, M Tier Set Up**
+| Tier | Recency | Frequency | Monetary |
+|:----:|:----:|:----:|:----:|
+| **Tier 1** | Most Recent | Most Transaction | Highest Spend |
+| **Tier 2** |  |  |  |
+| **Tier 3** |  | Fewest Transaction |  |
+| **Tier 4** | Least Recent | \ | Lowest Spend |
+
+
+**Customer Segmentation based on RFM Score (R, F, M Tier Concentration)**
 
 | Segmentation | RFM Score |
-| ------------- |:-------------:|
+|:-------------:|:-------------:|
 | Soulmate | 111 |
 | Lover | 222 |
 | Potential Lover | 223 |
@@ -40,6 +49,7 @@ Customer Segmentation based on RFM Score (R, F, M Tier Concentration)
 | Ex Lover | 411 |
 | Departed | 43X, 44X |
 
-The code file outlines the specific marketing strategies for each segmentation. 
+
+**The code file outlines the specific marketing strategies for each segmentation.**
 <br><br>
 *Take **Soulmate** segment as an example. They are the most valuable customers who purchased the most recently, buy the most frequently, and spend the highest money. The priority should be paid to this group of customers and the satisfaction of these customers should be improved in order to increase customer retention. VIP services and personalized services can be provided to enhance the user experience.*
