@@ -1,5 +1,5 @@
 # About The Analysis
-Utilize RFM analysis to assess the value of customers and their ability to create value. Customers' value can be determined by looking at three indicators: their recent purchasing behavior, their overall purchasing frequency, and the amount of money they spend.
+Utilize RFM to understand customer behavior and assess customer value. By identifying high-quality customers, the company can develop marketing and communication strategies tailored to customers' specific needs, thereby supporting more effective marketing decisions.
 
 
 ## Project
