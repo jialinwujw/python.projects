@@ -28,7 +28,7 @@ warnings.filterwarnings('ignore')
 ```
 
 ### Outputs
-**R, F, M Tier Set Up**
+**R, F, M Tier Set Up by Quartiles**
 | Tier | Recency | Frequency | Monetary |
 |:----:|:----:|:----:|:----:|
 | **Tier 1** | Most Recent | Most Transaction | Highest Spend |
@@ -37,7 +37,7 @@ warnings.filterwarnings('ignore')
 | **Tier 4** | Least Recent | \ | Lowest Spend |
 
 
-**Customer Segmentation based on RFM Score (R, F, M Tier Concentration)**
+**Customer Segmentation Based on RFM Score (R, F, M Tier Concentration)**
 
 | Segmentation | RFM Score |
 |:-------------:|:-------------:|
