@@ -106,7 +106,7 @@ df <- whas500 %>%
          fdate = as.Date(fdate, format = "%d-%m-%Y"), # change the date format
          survival_time = as.numeric(difftime(fdate, admitdate, units = "days")) / 30.42, # new variable for survival time (month)
          censor = ifelse(((fdate - admitdate) < 365.25) & fstat == 1, 1, 0),
-         status = factor(censor, levels = c(0, 1), labels = c("Alive", "Dead"))) # identify status using new censor data
+         status = factor(fstat, levels = c(0, 1), labels = c("Alive", "Dead"))) # identify status using new censor data
 
 head(df)
 ```
@@ -130,9 +130,9 @@ ggplot(df, aes(x = age, fill = status, color = status)) +
   geom_density(alpha = 0.5) +
   ggtitle("Age Distribution by Vital Status") +
   geom_vline(data = age_mean, aes(xintercept = age, color = status),
-             linetype = "dashed", size = 1.5) +
+             linetype = "dashed", linewidth = 1.5) +
   geom_text(data = age_mean, aes(x = age, y = 0.04, label = round(age, 1), color = status),
-            vjust = 0.7, size = 4) + 
+            vjust = 1.5, size = 4) + 
   labs(y = "density")
 
 
@@ -201,9 +201,9 @@ ggplot(df, aes(x = bmi, fill = status, color = status)) +
   geom_density(alpha = 0.5) +
   ggtitle("BMI Distribution by Vital Status") +
   geom_vline(data = bmi_mean, aes(xintercept = bmi, color = status),
-             linetype = "dashed", size = 1.5) +
+             linetype = "dashed", linewidth = 1.5) +
   geom_text(data = bmi_mean, aes(x = bmi, y = 0.08, label = round(bmi, 1), color = status),
-            vjust = - 2, size = 4) + 
+            vjust = -3, size = 4) + 
   labs(y = "density")
 
 ```
@@ -234,7 +234,7 @@ cat_table <- rbind(cat_table, prop.table(cat_table, margin = 1)[2, ])
 cat_table[3, ] <- paste0(sprintf("%.1f", round(cat_table[2, ]/colSums(cat_table), 3)*100), "%")
 
 # save as a CSV file for slides design
-# write.csv(table_cat, "EDA_CategoricalVariables.csv", row.names = TRUE)
+write.csv(cat_table, "EDA_CategoricalVariables.csv", row.names = TRUE)
 
 # Print the table
 cat_table
