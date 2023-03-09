@@ -1,0 +1,966 @@
+---
+title: "Final Project"
+subtitle: ""
+author: "Jialin (Evelyn) Wu"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_depth: 3
+    number_sections: no
+    toc_float:
+      collapsed: no
+      smooth_scroll: yes
+---
+
+[Link to my GitHub repo for this assignment](https://github.com/jialinwujw/sharing_projects/tree/main/mi_survival_analysis)
+
+```{r include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, error = TRUE, message = TRUE, warning = TRUE)
+```
+
+<hr style="height:1px; width:100%; border-width:0; color:gray; background-color:gray">
+
+# Setup Environment
+
+```{r message = FALSE}
+# turn off scientific number
+options(scipen = 999)
+
+# load libraries
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(tidyverse)
+library(survival)
+library(survminer)
+library(pROC)
+library(randomForest)
+library(caret)
+library(class)
+library(rpart)
+
+# load data
+library(smoothHR)
+data("whas500")
+
+# Display raw data
+head(whas500)
+```
+
+<hr style="height:1px; width:100%; border-width:0; color:gray; background-color:gray">
+
+# Background
+
+A group of researchers in the Department of Cardiology at the University of Massachusetts Medical School has collected data from 300 myocardial infarction (MI) patients from 1975 to 2001 in Worcester, Massachusetts. This project aims to identify factors associated with survival rate after hospitalization for acute MI.
+
+-   id: Patient ID
+-   age: Age at hospital admission in years
+-   gender: 0: Male / 1: Female
+-   hr: Initial heart rate (beats per minute)
+-   sysbp: Initial systolic blood pressure (mmHg)
+-   diasbp: Initial diastolic blood pressure (mmHg)
+-   bmi: Body Mass Index (kg/m2)
+-   cvd: History of cardiovascular disease (0: No / 1: Yes)
+-   afb: Atrial fibrillation (0: No / 1: Yes)
+-   sho: Cardiogenic shock (0: No / 1: Yes)
+-   chf: Congestive heart complications (0: No / 1: Yes)
+-   av3: Complete heart block (0: No / 1: Yes)
+-   miord: MI order (0: First / 1: Recurrent)
+-   mitype: MI type (0: Non-Q-wave / 1: Q-wave)
+-   admitdate: Hospital admission date (mm/dd/yyyy)
+-   fdate: Date of last follow-up (mm/dd/yyyy)
+-   los: Length of hospital stay (days from hospital admission to hospital discharge)
+-   fstat: Vital status at last follow-up (0: Alive / 1:Dead)
+
+<hr style="height:1px; width:100%; border-width:0; color:gray; background-color:gray">
+
+# Data Preprocessing
+
+```{r}
+# Check if there are any missing data
+apply(whas500, 2, function(x){sum(is.na(x))})
+```
+
+
+```{r}
+# Get the statistical summary and nature of the dataset
+summary(whas500)
+```
+
+<hr style="height:1px; width:100%; border-width:0; color:gray; background-color:gray">
+
+# Feature Engineering
+
+```{r}
+df <- whas500 %>% 
+  select(-c(year, disdate, dstat, lenfol)) %>% 
+  mutate(gender = factor(gender, levels = c(0, 1), labels = c("Male", "Female")),
+         miord = factor(miord, levels = c(0, 1), labels = c("First", "Recurrent")),
+         mitype = factor(mitype, levels = c(0, 1), labels = c("Non Q-wave", "Q-wave")),
+         cvd = factor(cvd, levels = c(0, 1), labels = c("No", "Yes")),
+         afb = factor(afb, levels = c(0, 1), labels = c("No", "Yes")),
+         chf = factor(chf, levels = c(0, 1), labels = c("No", "Yes")),
+         admitdate = as.Date(admitdate, format = "%d-%m-%Y"), # change the date format
+         fdate = as.Date(fdate, format = "%d-%m-%Y"), # change the date format
+         survival_time = as.numeric(difftime(fdate, admitdate, units = "days")) / 30.42, # new variable for survival time (month)
+         censor = ifelse(((fdate - admitdate) < 365.25) & fstat == 1, 1, 0),
+         status = factor(censor, levels = c(0, 1), labels = c("Alive", "Dead"))) # identify status using new censor data
+
+head(df)
+```
+
+<hr style="height:1px; width:100%; border-width:0; color:gray; background-color:gray">
+
+# Data Exploring (EDA)
+
+```{r}
+# Get the statistical summary and nature of the dataset
+summary(df)
+```
+
+
+```{r}
+# Calculate mean age for each status group
+age_mean <- aggregate(age ~ status, data = df, mean)
+
+# Plot age distribution with mean age lines and labels
+ggplot(df, aes(x = age, fill = status, color = status)) +
+  geom_density(alpha = 0.5) +
+  ggtitle("Age Distribution by Vital Status") +
+  geom_vline(data = age_mean, aes(xintercept = age, color = status),
+             linetype = "dashed", size = 1.5) +
+  geom_text(data = age_mean, aes(x = age, y = 0.04, label = round(age, 1), color = status),
+            vjust = 0.7, size = 4) + 
+  labs(y = "density")
+
+
+```
+
+
+```{r}
+# Calculate counts by gender and status
+gender_count <- table(df$gender, df$status)
+
+# Convert table to dataframe
+gender_df <- as.data.frame(gender_count)
+
+# Rename columns
+colnames(gender_df) <- c("gender", "status", "count")
+
+# Stacked + percent
+ggplot(gender_df, aes(fill=status, y=count, x=gender)) + 
+  geom_bar(position="fill", stat="identity", alpha = 0.8) +
+  geom_text(aes(label=count), position=position_fill(vjust=0.5)) +
+  ggtitle("Distribution of Vital Status by Gender") +
+  xlab("Gender") +
+  ylab("Proportion")
+
+```
+
+
+```{r}
+# Calculate mean heart rate for each vital status group
+hr_mean <- aggregate(hr ~ status, data = df, mean)
+
+# Create box plot with mean heart rate
+ggplot(df, aes(x = status, y = hr, fill = status)) +
+  geom_boxplot(alpha = 0.8) +
+  geom_text(data = hr_mean, aes(x = status, y = hr, label = round(hr, 1)), size = 4, vjust = -1) +
+  ggtitle("Heart Rate by Vital Status") +
+  xlab("Vital Status") +
+  ylab("Heart Rate")
+```
+
+
+```{r}
+# Blood Pressure
+ggplot(df, aes(x = status, y = sysbp, fill = status)) +
+  geom_boxplot(alpha = 0.8) +
+  ggtitle("Initial Systolic Blood Pressure by Vital Status") +
+  xlab("Vital Status") +
+  ylab("Initial Systolic Blood Pressure (mmHg)")
+
+ggplot(df, aes(x = status, y = diasbp, fill = status)) +
+  geom_boxplot(alpha = 0.8) +
+  ggtitle("Initial Diastolic Blood Pressure by Vital Status") +
+  xlab("Vital Status") +
+  ylab("Initial Diastolic Blood Pressure (mmHg)")
+
+```
+
+
+```{r}
+# BMI
+# Calculate mean bmi for each status group
+bmi_mean <- aggregate(bmi ~ status, data = df, mean)
+
+# Plot bmi distribution with mean age lines and labels
+ggplot(df, aes(x = bmi, fill = status, color = status)) +
+  geom_density(alpha = 0.5) +
+  ggtitle("BMI Distribution by Vital Status") +
+  geom_vline(data = bmi_mean, aes(xintercept = bmi, color = status),
+             linetype = "dashed", size = 1.5) +
+  geom_text(data = bmi_mean, aes(x = bmi, y = 0.08, label = round(bmi, 1), color = status),
+            vjust = - 2, size = 4) + 
+  labs(y = "density")
+
+```
+
+
+```{r}
+# Create tables for all categorical variables with status
+cvd_table <- table(df$status, df$cvd)
+afb_table <- table(df$status, df$afb)
+sho_table <- table(df$status, df$sho)
+chf_table <- table(df$status, df$chf)
+av3_table <- table(df$status, df$av3)
+miord_table <- table(df$status, df$miord)
+mitype_table <- table(df$status, df$mitype)
+
+# Combine tables into one large table
+cat_table <- cbind(cvd_table, afb_table, sho_table, chf_table, av3_table, miord_table, mitype_table)
+# Rename row names
+rownames(cat_table) <- c("Alive", "Dead")
+# Rename column names
+colnames(cat_table) <- c("CVD (No)", "CVD (Yes)", "AFB (No)", "AFB (Yes)", "SHO (No)", "SHO (Yes)",
+                         "CHF (No)", "CHF (Yes)", "AV3 (No)", "AV3 (Yes)", "MI Order (First)", "MI Order (Recurrent)", 
+                         "MI Type (Non Q-wave)", "MI Type (Q-wave)")
+
+# Add a row showing the dead-to-total ratio for each column
+cat_table <- rbind(cat_table, prop.table(cat_table, margin = 1)[2, ])
+# Format the table to show percentages
+cat_table[3, ] <- paste0(sprintf("%.1f", round(cat_table[2, ]/colSums(cat_table), 3)*100), "%")
+
+# save as a CSV file for slides design
+# write.csv(table_cat, "EDA_CategoricalVariables.csv", row.names = TRUE)
+
+# Print the table
+cat_table
+```
+
+<hr style="height:1px; width:100%; border-width:0; color:gray; background-color:gray">
+
+# Kaplan-Meier Curve
+
+```{r, warning = FALSE}
+# MI order
+km_miord <- survfit(Surv(survival_time, fstat) ~ miord, data = df) # survival function
+ggsurvplot(km_miord, data = df, surv.median.line = "hv", conf.int = TRUE) +
+  labs(title = "Survival by MI Order", x = "Time (Month)", y = "Survival Probability") # plot KM curve
+surv_median(km_miord) # median survival time
+
+# MI type
+km_mitype <- survfit(Surv(survival_time, fstat) ~ mitype, data = df) # survival function
+ggsurvplot(km_mitype, data = df, surv.median.line = "hv", conf.int = TRUE) +
+  labs(title = "Survival by MI Type", x = "Time (Month)", y = "Survival Probability") # plot KM curve
+surv_median(km_mitype) # median survival time
+```
+
+<hr style="height:1px; width:100%; border-width:0; color:gray; background-color:gray">
+
+# Cox Proportional Hazards Regression: Survival Time
+
+```{r}
+# Create new dataframe for Cox Regression
+df_time <- whas500 %>% 
+  select(-c(year, disdate, dstat, lenfol, id)) %>% 
+  mutate(admitdate = as.Date(admitdate, format = "%d-%m-%Y"), # change the date format
+         fdate = as.Date(fdate, format = "%d-%m-%Y"), # change the date format
+         survival_time = as.numeric(difftime(fdate, admitdate, units = "days")) / 30.42) %>%  # new variable for survival time (month)) 
+  select(-c(admitdate, fdate))
+
+head(df_time)
+```
+
+
+## All Features
+
+```{r}
+feature_names <- names(df_time)[-match(c("survival_time", "fstat"), names(df_time))]
+
+cox_result <- data.frame(matrix(ncol = 6, nrow = 14))
+colnames(cox_result) <- c("Feature", "Parameter_Estimate", "P_Value", "HR", "CI_Lower", "CI_Upper")
+
+# Fit Cox model with all variables
+cox_fit <- coxph(Surv(survival_time, fstat) ~ age + gender + hr + sysbp + diasbp + bmi + cvd + afb + sho + chf + av3 + miord + mitype + los, data = df_time)
+
+# Extract hazard ratio and confidence intervals
+HR <- exp(coef(cox_fit))
+CI <- confint(cox_fit)
+CI_Lower <- exp(CI[1])
+CI_Upper <- exp(CI[2])
+
+# Update output table with parameter estimate, p-value, and HR
+cox_result$Feature <- feature_names
+cox_result$Parameter_Estimate <- cox_fit$coef
+cox_result$P_Value <- summary(cox_fit)$coefficients[, "Pr(>|z|)"]
+cox_result$HR <- HR
+cox_result$CI_Lower <- CI_Lower
+cox_result$CI_Upper <- CI_Upper
+
+# Sort output table by p-value ascending and HR descending
+cox_result <- cox_result[order(cox_result$P_Value, -cox_result$HR), ]
+
+# Format output table
+cox_result <- cox_result %>%
+  mutate(across(c(Parameter_Estimate, HR, CI_Lower, CI_Upper), ~ round(., 3)),
+         P_Value = ifelse(P_Value <= 0.001, "< 0.001", round(P_Value, 4)),
+         Factor_Name = case_when(
+            Feature == "age" ~ "Age at hospital admission (years)",
+            Feature == "gender" ~ "Gender (0: Male / 1: Female)",
+            Feature == "hr" ~ "Initial heart rate (beats per minute)",
+            Feature == "sysbp" ~ "Initial systolic blood pressure (mmHg)",
+            Feature == "diasbp" ~ "Initial diastolic blood pressure (mmHg)",
+            Feature == "bmi" ~ "Body Mass Index (kg/m2)",
+            Feature == "cvd" ~ "History of cardiovascular disease (0: No / 1: Yes)",
+            Feature == "afb" ~ "Atrial fibrillation (0: No / 1: Yes)",
+            Feature == "sho" ~ "Cardiogenic shock (0: No / 1: Yes)",
+            Feature == "chf" ~ "Congestive heart complications (0: No / 1: Yes)",
+            Feature == "av3" ~ "Complete heart block (0: No / 1: Yes)",
+            Feature == "miord" ~ "MI order (0: First / 1: Recurrent)",
+            Feature == "mitype" ~ "MI type (0: Non-Q-wave / 1: Q-wave)",
+            Feature == "los" ~ "Length of hospital stay",
+            TRUE ~ Feature
+           )) %>% 
+  relocate(Factor_Name, .before = Parameter_Estimate)
+
+# save the table_cat data frame as a CSV file
+write.csv(cox_result, "COX_AllPredictors.csv", row.names = FALSE)
+
+cox_result
+```
+
+```{r}
+# AIC
+aic_all_predictors <- AIC(cox_fit)
+aic_all_predictors
+```
+
+
+## Feature Selection
+### Initialize the model
+```{r}
+cox_regression_table <- function(data, surv_col, event_col) {
+
+  # Extract predictor variable names
+  predictor_names <- names(data)[-match(c(surv_col, event_col), names(data))]
+  
+  # Initialize output table
+  output_table <- data.frame(Feature = predictor_names,
+                             Parameter_Estimate = rep(NA, length(predictor_names)),
+                             P_Value = rep(NA, length(predictor_names)),
+                             HR = rep(NA, length(predictor_names)),
+                             CI_Lower = rep(NA, length(predictor_names)),
+                             CI_Upper = rep(NA, length(predictor_names)),
+                             AIC = rep(NA, length(predictor_names)),
+                             stringsAsFactors = FALSE)
+  
+  # Fit Cox models and generate survival predictions for each predictor variable
+  for (i in seq_along(predictor_names)) {
+    # Extract predictor variable and add event and survival time columns
+    predictor <- predictor_names[i]
+    predictor_data <- data[, c(predictor, surv_col, event_col)]
+    
+    # Fit Cox model
+    fit <- coxph(Surv(data[[surv_col]], data[[event_col]]) ~ data[[predictor]], data = data)
+    
+    # Extract hazard ratio and confidence intervals
+    HR <- exp(coef(fit))
+    CI <- confint(fit)
+    CI_Lower <- exp(CI[1])
+    CI_Upper <- exp(CI[2])
+    
+    # Update output table with parameter estimate, p-value, and HR
+    output_table[i, "Parameter_Estimate"] <- fit$coef
+    output_table[i, "P_Value"] <- summary(fit)$coefficients["data[[predictor]]", "Pr(>|z|)"]
+    output_table[i, "HR"] <- HR
+    output_table[i, "CI_Lower"] <- CI_Lower
+    output_table[i, "CI_Upper"] <- CI_Upper
+    output_table[i, "AIC"] <- AIC(fit)
+  }
+
+  # Format output table
+  output_table <- output_table %>%
+    mutate(across(c(Parameter_Estimate, HR, CI_Lower, CI_Upper), ~ round(., 3))) %>% 
+    arrange(P_Value, desc(abs(Parameter_Estimate))) %>% 
+    mutate(P_Value = ifelse(P_Value <= 0.001, "< 0.001", round(P_Value, 4)))
+  
+  return(output_table)
+}
+
+
+# Set the survival time and event indicator columns
+surv_col <- "survival_time"
+event_col <- "fstat"
+
+# Fit Cox models and generate survival predictions for each predictor variable
+cox_result_0 <- cox_regression_table(df_time, surv_col, event_col)
+cox_result_0 <- cox_result_0 %>%  
+  mutate(Factor_Name = case_when(
+    Feature == "age" ~ "Age at hospital admission (years)",
+    Feature == "gender" ~ "Gender (0: Male / 1: Female)",
+    Feature == "hr" ~ "Initial heart rate (beats per minute)",
+    Feature == "sysbp" ~ "Initial systolic blood pressure (mmHg)",
+    Feature == "diasbp" ~ "Initial diastolic blood pressure (mmHg)",
+    Feature == "bmi" ~ "Body Mass Index (kg/m2)",
+    Feature == "cvd" ~ "History of cardiovascular disease (0: No / 1: Yes)",
+    Feature == "afb" ~ "Atrial fibrillation (0: No / 1: Yes)",
+    Feature == "sho" ~ "Cardiogenic shock (0: No / 1: Yes)",
+    Feature == "chf" ~ "Congestive heart complications (0: No / 1: Yes)",
+    Feature == "av3" ~ "Complete heart block (0: No / 1: Yes)",
+    Feature == "miord" ~ "MI order (0: First / 1: Recurrent)",
+    Feature == "mitype" ~ "MI type (0: Non-Q-wave / 1: Q-wave)",
+    Feature == "los" ~ "Length of hospital stay",
+    TRUE ~ Feature
+  )) %>% 
+  relocate(Factor_Name, .before = Parameter_Estimate)
+
+# save the  data frame as a CSV file
+write.csv(cox_result_0, "COX_ForwardStep1.csv", row.names = FALSE)
+
+# Print the summary of the Cox models for each variable
+cox_result_0
+```
+
+### Model: AGE
+
+```{r}
+# Forward Selection Result
+forward_selection_result <- data.frame()
+i <- 1
+forward_selection_result[i, "Step"] <- i
+forward_selection_result[i, "Predictor_Entered"] <- cox_result_0[1, "Feature"]
+forward_selection_result[i, "P Value"] <- cox_result_0[1, "P_Value"]
+forward_selection_result[i, "AIC"] <- cox_result_0[1, "AIC"]
+
+# Initialize cox_result_1 table
+cox_result_1 <- data.frame(Feature = rep(NA_real_, length(cox_result_0$Feature)-1),
+                           Parameter_Estimate = rep(NA_real_, length(cox_result_0$Feature)-1),
+                           P_Value = rep(NA_real_, length(cox_result_0$Feature)-1),
+                           HR = rep(NA_real_, length(cox_result_0$Feature)-1),
+                           CI_Lower = rep(NA_real_, length(cox_result_0$Feature)-1),
+                           CI_Upper = rep(NA, length(cox_result_0$Feature)-1),
+                           AIC = rep(NA, length(cox_result_0$Feature)-1))
+
+i <- 1
+# Loop over each variable in cox_result_0, except the first variable
+for (var in cox_result_0[-1, "Feature"]) {
+  # Fit Cox model with chf and the current variable
+  cox_fit_1 <- coxph(Surv(survival_time, fstat) ~ age + df_time[[var]], data = df_time)
+  
+  # Extract hazard ratio and confidence intervals
+  HR <- exp(coef(cox_fit_1))
+  CI <- confint(cox_fit_1)
+  CI_Lower <- exp(CI[2,1])
+  CI_Upper <- exp(CI[2,2])
+  
+  # Update output table with parameter estimate, p-value, and HR
+  cox_result_1[i, "Feature"] <- var
+  cox_result_1[i, "Parameter_Estimate"] <- cox_fit_1$coef[2]
+  cox_result_1[i, "P_Value"] <- summary(cox_fit_1)$coefficients["df_time[[var]]", "Pr(>|z|)"]
+  cox_result_1[i, "HR"] <- HR[2]
+  cox_result_1[i, "CI_Lower"] <- CI_Lower
+  cox_result_1[i, "CI_Upper"] <- CI_Upper
+  cox_result_1[i, "AIC"] <- AIC(cox_fit_1)
+  
+  i <- i+1
+}
+
+# Format output table
+cox_result_1 <- cox_result_1 %>%
+  mutate(across(c(Parameter_Estimate, HR, CI_Lower, CI_Upper), ~ round(., 3))) %>% 
+  arrange(P_Value, desc(abs(Parameter_Estimate))) %>% 
+  mutate(P_Value = ifelse(P_Value <= 0.001, "< 0.001", round(P_Value, 4)))
+
+cox_result_1
+```
+
+### Model: AGE + CHF
+
+```{r}
+# Forward Selection Result
+i <- nrow(forward_selection_result) + 1
+forward_selection_result[i, "Step"] <- i
+forward_selection_result[i, "Predictor_Entered"] <- cox_result_1[1, "Feature"]
+forward_selection_result[i, "P Value"] <- cox_result_1[1, "P_Value"]
+forward_selection_result[i, "AIC"] <- cox_result_1[1, "AIC"]
+
+# Initialize cox_result_2 table
+cox_result_2 <- data.frame(Feature = rep(NA_real_, length(cox_result_1$Feature)-1),
+                           Parameter_Estimate = rep(NA_real_, length(cox_result_1$Feature)-1),
+                           P_Value = rep(NA_real_, length(cox_result_1$Feature)-1),
+                           HR = rep(NA_real_, length(cox_result_1$Feature)-1),
+                           CI_Lower = rep(NA_real_, length(cox_result_1$Feature)-1),
+                           CI_Upper = rep(NA_real_, length(cox_result_1$Feature)-1),
+                           AIC = rep(NA_real_, length(cox_result_1$Feature)-1))
+
+i <- 1
+# Loop over each variable in cox_result_1, except the first variable
+for (var in cox_result_1[-1, "Feature"]) {
+  # Fit Cox model with chf and the current variable
+  cox_fit_2 <- coxph(Surv(survival_time, fstat) ~ age + chf + df_time[[var]], data = df_time)
+  
+  # Extract hazard ratio and confidence intervals
+  HR <- exp(coef(cox_fit_2))
+  CI <- confint(cox_fit_2)
+  CI_Lower <- exp(CI[3,1])
+  CI_Upper <- exp(CI[3,2])
+  
+  # Update output table with parameter estimate, p-value, and HR
+  cox_result_2[i, "Feature"] <- var
+  cox_result_2[i, "Parameter_Estimate"] <- cox_fit_2$coef[3]
+  cox_result_2[i, "P_Value"] <- summary(cox_fit_2)$coefficients["df_time[[var]]", "Pr(>|z|)"]
+  cox_result_2[i, "HR"] <- HR[3]
+  cox_result_2[i, "CI_Lower"] <- CI_Lower
+  cox_result_2[i, "CI_Upper"] <- CI_Upper
+  cox_result_2[i, "AIC"] <- AIC(cox_fit_2)
+  
+  i <- i+1
+}
+
+# Format output table
+cox_result_2 <- cox_result_2 %>%
+  mutate(across(c(Parameter_Estimate, HR, CI_Lower, CI_Upper), ~ round(., 3))) %>% 
+  arrange(P_Value, desc(abs(Parameter_Estimate))) %>% 
+  mutate(P_Value = ifelse(P_Value <= 0.001, "< 0.001", round(P_Value, 4)))
+
+cox_result_2
+```
+
+
+### Model: AGE + CHF + SHO
+
+```{r}
+# Forward Selection Result
+i <- nrow(forward_selection_result) + 1
+forward_selection_result[i, "Step"] <- i
+forward_selection_result[i, "Predictor_Entered"] <- cox_result_2[1, "Feature"]
+forward_selection_result[i, "P Value"] <- cox_result_2[1, "P_Value"]
+forward_selection_result[i, "AIC"] <- cox_result_2[1, "AIC"]
+
+# Initialize cox_result_3 table
+cox_result_3 <- data.frame(Feature = rep(NA_real_, length(cox_result_2$Feature)-1),
+                           Parameter_Estimate = rep(NA_real_, length(cox_result_2$Feature)-1),
+                           P_Value = rep(NA_real_, length(cox_result_2$Feature)-1),
+                           HR = rep(NA_real_, length(cox_result_2$Feature)-1),
+                           CI_Lower = rep(NA_real_, length(cox_result_2$Feature)-1),
+                           CI_Upper = rep(NA_real_, length(cox_result_2$Feature)-1),
+                           AIC = rep(NA_real_, length(cox_result_2$Feature)-1))
+
+i <- 1
+# Loop over each variable in cox_result_2, except the first variable
+for (var in cox_result_2[-1, "Feature"]) {
+  # Fit Cox model with chf and the current variable
+  cox_fit_3 <- coxph(Surv(survival_time, fstat) ~ age + chf + sho + df_time[[var]], data = df_time)
+  
+  # Extract hazard ratio and confidence intervals
+  HR <- exp(coef(cox_fit_3))
+  CI <- confint(cox_fit_3)
+  CI_Lower <- exp(CI[4,1])
+  CI_Upper <- exp(CI[4,2])
+  
+  # Update output table with parameter estimate, p-value, and HR
+  cox_result_3[i, "Feature"] <- var
+  cox_result_3[i, "Parameter_Estimate"] <- cox_fit_3$coef[4]
+  cox_result_3[i, "P_Value"] <- summary(cox_fit_3)$coefficients["df_time[[var]]", "Pr(>|z|)"]
+  cox_result_3[i, "HR"] <- HR[4]
+  cox_result_3[i, "CI_Lower"] <- CI_Lower
+  cox_result_3[i, "CI_Upper"] <- CI_Upper
+  cox_result_3[i, "AIC"] <- AIC(cox_fit_3)
+  
+  i <- i+1
+}
+
+# Format output table
+cox_result_3 <- cox_result_3 %>%
+  mutate(across(c(Parameter_Estimate, HR, CI_Lower, CI_Upper), ~ round(., 3))) %>% 
+  arrange(P_Value, desc(abs(Parameter_Estimate))) %>% 
+  mutate(P_Value = ifelse(P_Value <= 0.001, "< 0.001", round(P_Value, 4)))
+
+cox_result_3
+```
+
+
+### Model: AGE + CHF + SHO + HR
+
+```{r}
+# Forward Selection Result
+i <- nrow(forward_selection_result) + 1
+forward_selection_result[i, "Step"] <- i
+forward_selection_result[i, "Predictor_Entered"] <- cox_result_3[1, "Feature"]
+forward_selection_result[i, "P Value"] <- cox_result_3[1, "P_Value"]
+forward_selection_result[i, "AIC"] <- cox_result_3[1, "AIC"]
+
+# Initialize cox_result_4 table
+cox_result_4 <- data.frame(Feature = rep(NA_real_, length(cox_result_3$Feature)-1),
+                           Parameter_Estimate = rep(NA_real_, length(cox_result_3$Feature)-1),
+                           P_Value = rep(NA_real_, length(cox_result_3$Feature)-1),
+                           HR = rep(NA_real_, length(cox_result_3$Feature)-1),
+                           CI_Lower = rep(NA_real_, length(cox_result_3$Feature)-1),
+                           CI_Upper = rep(NA_real_, length(cox_result_3$Feature)-1),
+                           AIC = rep(NA_real_, length(cox_result_3$Feature)-1))
+
+i <- 1
+# Loop over each variable in cox_result_3, except the first variable
+for (var in cox_result_3[-1, "Feature"]) {
+  # Fit Cox model with chf and the current variable
+  cox_fit_4 <- coxph(Surv(survival_time, fstat) ~ age + chf + sho + hr + df_time[[var]], data = df_time)
+  
+  # Extract hazard ratio and confidence intervals
+  HR <- exp(coef(cox_fit_4))
+  CI <- confint(cox_fit_4)
+  CI_Lower <- exp(CI[5,1])
+  CI_Upper <- exp(CI[5,2])
+  
+  # Update output table with parameter estimate, p-value, and HR
+  cox_result_4[i, "Feature"] <- var
+  cox_result_4[i, "Parameter_Estimate"] <- cox_fit_4$coef[5]
+  cox_result_4[i, "P_Value"] <- summary(cox_fit_4)$coefficients["df_time[[var]]", "Pr(>|z|)"]
+  cox_result_4[i, "HR"] <- HR[5]
+  cox_result_4[i, "CI_Lower"] <- CI_Lower
+  cox_result_4[i, "CI_Upper"] <- CI_Upper
+  cox_result_4[i, "AIC"] <- AIC(cox_fit_4)
+  
+  i <- i+1
+}
+
+# Format output table
+cox_result_4 <- cox_result_4 %>%
+  mutate(across(c(Parameter_Estimate, HR, CI_Lower, CI_Upper), ~ round(., 3))) %>% 
+  arrange(P_Value, desc(abs(Parameter_Estimate))) %>% 
+  mutate(P_Value = ifelse(P_Value <= 0.001, "< 0.001", round(P_Value, 4)))
+
+cox_result_4
+```
+
+### Model: AGE + CHF + SHO + HR + DIASBP
+
+```{r}
+# Forward Selection Result
+i <- nrow(forward_selection_result) + 1
+forward_selection_result[i, "Step"] <- i
+forward_selection_result[i, "Predictor_Entered"] <- cox_result_4[1, "Feature"]
+forward_selection_result[i, "P Value"] <- cox_result_4[1, "P_Value"]
+forward_selection_result[i, "AIC"] <- cox_result_4[1, "AIC"]
+
+# Initialize cox_result_5 table
+cox_result_5 <- data.frame(Feature = rep(NA_real_, length(cox_result_4$Feature)-1),
+                           Parameter_Estimate = rep(NA_real_, length(cox_result_4$Feature)-1),
+                           P_Value = rep(NA_real_, length(cox_result_4$Feature)-1),
+                           HR = rep(NA_real_, length(cox_result_4$Feature)-1),
+                           CI_Lower = rep(NA_real_, length(cox_result_4$Feature)-1),
+                           CI_Upper = rep(NA_real_, length(cox_result_4$Feature)-1),
+                           AIC = rep(NA_real_, length(cox_result_4$Feature)-1))
+
+i <- 1
+# Loop over each variable in cox_result_4, except the first variable
+for (var in cox_result_4[-1, "Feature"]) {
+  # Fit Cox model with chf and the current variable
+  cox_fit_5 <- coxph(Surv(survival_time, fstat) ~ age + chf + sho + hr + diasbp + df_time[[var]], data = df_time)
+  
+  # Extract hazard ratio and confidence intervals
+  HR <- exp(coef(cox_fit_5))
+  CI <- confint(cox_fit_5)
+  CI_Lower <- exp(CI[6,1])
+  CI_Upper <- exp(CI[6,2])
+  
+  # Update output table with parameter estimate, p-value, and HR
+  cox_result_5[i, "Feature"] <- var
+  cox_result_5[i, "Parameter_Estimate"] <- cox_fit_5$coef[6]
+  cox_result_5[i, "P_Value"] <- summary(cox_fit_5)$coefficients["df_time[[var]]", "Pr(>|z|)"]
+  cox_result_5[i, "HR"] <- HR[6]
+  cox_result_5[i, "CI_Lower"] <- CI_Lower
+  cox_result_5[i, "CI_Upper"] <- CI_Upper
+  cox_result_5[i, "AIC"] <- AIC(cox_fit_5)
+  
+  i <- i+1
+}
+
+# Format output table
+cox_result_5 <- cox_result_5 %>%
+  mutate(across(c(Parameter_Estimate, HR, CI_Lower, CI_Upper), ~ round(., 3))) %>% 
+  arrange(P_Value, desc(abs(Parameter_Estimate))) %>% 
+  mutate(P_Value = ifelse(P_Value <= 0.001, "< 0.001", round(P_Value, 4)))
+
+cox_result_5
+```
+
+
+### Model: AGE + CHF + SHO + HR + DIASBP + BMI
+
+```{r}
+# Forward Selection Result
+i <- nrow(forward_selection_result) + 1
+forward_selection_result[i, "Step"] <- i
+forward_selection_result[i, "Predictor_Entered"] <- cox_result_5[1, "Feature"]
+forward_selection_result[i, "P Value"] <- cox_result_5[1, "P_Value"]
+forward_selection_result[i, "AIC"] <- cox_result_5[1, "AIC"]
+
+# Initialize cox_result_6 table
+cox_result_6 <- data.frame(Feature = rep(NA_real_, length(cox_result_5$Feature)-1),
+                           Parameter_Estimate = rep(NA_real_, length(cox_result_5$Feature)-1),
+                           P_Value = rep(NA_real_, length(cox_result_5$Feature)-1),
+                           HR = rep(NA_real_, length(cox_result_5$Feature)-1),
+                           CI_Lower = rep(NA_real_, length(cox_result_5$Feature)-1),
+                           CI_Upper = rep(NA_real_, length(cox_result_5$Feature)-1),
+                           AIC = rep(NA_real_, length(cox_result_5$Feature)-1))
+
+i <- 1
+# Loop over each variable in cox_result_5, except the first variable
+for (var in cox_result_5[-1, "Feature"]) {
+  # Fit Cox model with chf and the current variable
+  cox_fit_6 <- coxph(Surv(survival_time, fstat) ~ age + chf + sho + hr + diasbp + bmi + df_time[[var]], data = df_time)
+  
+  # Extract hazard ratio and confidence intervals
+  HR <- exp(coef(cox_fit_6))
+  CI <- confint(cox_fit_6)
+  CI_Lower <- exp(CI[7,1])
+  CI_Upper <- exp(CI[7,2])
+  
+  # Update output table with parameter estimate, p-value, and HR
+  cox_result_6[i, "Feature"] <- var
+  cox_result_6[i, "Parameter_Estimate"] <- cox_fit_6$coef[7]
+  cox_result_6[i, "P_Value"] <- summary(cox_fit_6)$coefficients["df_time[[var]]", "Pr(>|z|)"]
+  cox_result_6[i, "HR"] <- HR[7]
+  cox_result_6[i, "CI_Lower"] <- CI_Lower
+  cox_result_6[i, "CI_Upper"] <- CI_Upper
+  cox_result_6[i, "AIC"] <- AIC(cox_fit_6)
+  
+  i <- i+1
+}
+
+# Format output table
+cox_result_6 <- cox_result_6 %>%
+  mutate(across(c(Parameter_Estimate, HR, CI_Lower, CI_Upper), ~ round(., 3))) %>% 
+  arrange(P_Value, desc(abs(Parameter_Estimate))) %>% 
+  mutate(P_Value = ifelse(P_Value <= 0.001, "< 0.001", round(P_Value, 4)))
+
+cox_result_6
+```
+
+
+### Final Model: Survival Time ~ AGE + CHF + SHO + HR + DIASBP + BMI + GENDER
+
+```{r}
+# Forward Selection Result
+i <- nrow(forward_selection_result) + 1
+forward_selection_result[i, "Step"] <- i
+forward_selection_result[i, "Predictor_Entered"] <- cox_result_6[1, "Feature"]
+forward_selection_result[i, "P Value"] <- cox_result_6[1, "P_Value"]
+forward_selection_result[i, "AIC"] <- cox_result_6[1, "AIC"]
+
+# Initialize cox_result_7 table
+cox_result_7 <- data.frame(Feature = rep(NA_real_, length(cox_result_6$Feature)-1),
+                           Parameter_Estimate = rep(NA_real_, length(cox_result_6$Feature)-1),
+                           P_Value = rep(NA_real_, length(cox_result_6$Feature)-1),
+                           HR = rep(NA_real_, length(cox_result_6$Feature)-1),
+                           CI_Lower = rep(NA_real_, length(cox_result_6$Feature)-1),
+                           CI_Upper = rep(NA_real_, length(cox_result_6$Feature)-1),
+                           AIC = rep(NA_real_, length(cox_result_6$Feature)-1))
+
+i <- 1
+# Loop over each variable in cox_result_6, except the first variable
+for (var in cox_result_6[-1, "Feature"]) {
+  # Fit Cox model with chf and the current variable
+  cox_fit_7 <- coxph(Surv(survival_time, fstat) ~ age + chf + sho + hr + diasbp + bmi + gender + df_time[[var]], data = df_time)
+  
+  # Extract hazard ratio and confidence intervals
+  HR <- exp(coef(cox_fit_7))
+  CI <- confint(cox_fit_7)
+  CI_Lower <- exp(CI[8,1])
+  CI_Upper <- exp(CI[8,2])
+  
+  # Update output table with parameter estimate, p-value, and HR
+  cox_result_7[i, "Feature"] <- var
+  cox_result_7[i, "Parameter_Estimate"] <- cox_fit_7$coef[8]
+  cox_result_7[i, "P_Value"] <- summary(cox_fit_7)$coefficients["df_time[[var]]", "Pr(>|z|)"]
+  cox_result_7[i, "HR"] <- HR[8]
+  cox_result_7[i, "CI_Lower"] <- CI_Lower
+  cox_result_7[i, "CI_Upper"] <- CI_Upper
+  cox_result_7[i, "AIC"] <- AIC(cox_fit_7)
+  
+  i <- i+1
+}
+
+# Format output table
+cox_result_7 <- cox_result_7 %>%
+  mutate(across(c(Parameter_Estimate, HR, CI_Lower, CI_Upper), ~ round(., 3))) %>% 
+  arrange(P_Value, desc(abs(Parameter_Estimate))) %>% 
+  mutate(P_Value = ifelse(P_Value <= 0.001, "< 0.001", round(P_Value, 4)))
+
+cox_result_7
+```
+
+
+```{r}
+# Print forward selection result
+forward_selection_result <- forward_selection_result %>%
+  mutate(Factor_Name = case_when(
+    Predictor_Entered == "age" ~ "Age at hospital admission (years)",
+    Predictor_Entered == "gender" ~ "Gender (0: Male / 1: Female)",
+    Predictor_Entered == "hr" ~ "Initial heart rate (beats per minute)",
+    Predictor_Entered == "sysbp" ~ "Initial systolic blood pressure (mmHg)",
+    Predictor_Entered == "diasbp" ~ "Initial diastolic blood pressure (mmHg)",
+    Predictor_Entered == "bmi" ~ "Body Mass Index (kg/m2)",
+    Predictor_Entered == "cvd" ~ "History of cardiovascular disease (0: No / 1: Yes)",
+    Predictor_Entered == "afb" ~ "Atrial fibrillation (0: No / 1: Yes)",
+    Predictor_Entered == "sho" ~ "Cardiogenic shock (0: No / 1: Yes)",
+    Predictor_Entered == "chf" ~ "Congestive heart complications (0: No / 1: Yes)",
+    Predictor_Entered == "av3" ~ "Complete heart block (0: No / 1: Yes)",
+    Predictor_Entered == "miord" ~ "MI order (0: First / 1: Recurrent)",
+    Predictor_Entered == "mitype" ~ "MI type (0: Non-Q-wave / 1: Q-wave)",
+    Predictor_Entered == "los" ~ "Length of hospital stay",
+    TRUE ~ Predictor_Entered
+  )) %>% 
+  relocate(Factor_Name, .after = Predictor_Entered)
+
+# Save as a CSV file for slide design
+write.csv(forward_selection_result, "COX_ForwardSelection.csv", row.names = FALSE)
+
+# Display result
+forward_selection_result
+
+# Plot AIC
+ggplot(data = forward_selection_result, aes(x = Step, y = AIC)) +
+  geom_line() +
+  geom_point() +
+  geom_hline(yintercept = aic_all_predictors, linetype = "dashed", color = "blue") +
+  labs(x = "Forward Selection Step", y = "AIC", title = "AIC Comparison of Forward Selection and All Predictors Models") +
+  scale_x_continuous(breaks = forward_selection_result$Step, minor_breaks = NULL)
+```
+
+<hr style="height:1px; width:100%; border-width:0; color:gray; background-color:gray">
+
+# Logistic Regression: Censor
+
+```{r}
+df_censor <- whas500 %>% 
+  select(-c(year, disdate, dstat, lenfol, id)) %>% 
+  mutate(admitdate = as.Date(admitdate, format = "%d-%m-%Y"), # change the date format
+         fdate = as.Date(fdate, format = "%d-%m-%Y"), # change the date format
+         censor = ifelse(((fdate - admitdate) < 365.25) & fstat == 1, 1, 0),) %>%  
+  select(-c(admitdate, fdate, fstat))
+
+head(df_censor)
+```
+
+## All Features
+
+```{r}
+# Split the data into training and testing sets
+set.seed(42)
+train <- sample(nrow(df_censor), nrow(df_censor)*0.7)
+train_data <- df_censor[train, ]
+test_data <- df_censor[-train, ]
+
+# Convert the censor variable to a factor variable
+train_data$censor <- factor(train_data$censor)
+test_data$censor <- factor(test_data$censor)
+
+# Fit a logistic regression model
+glm_model <- glm(censor ~ ., data = train_data, family = "binomial")
+glm_predictions <- predict(glm_model, newdata = test_data, type = "response")
+
+# Fit a random forest model
+rf_model <- randomForest(censor ~ ., data = train_data)
+rf_predictions <- predict(rf_model, newdata = test_data, type = "prob")[,2]
+
+# Fit a KNN model
+knn_model <- knn(train = train_data[, -1], test = test_data[, -1], cl = train_data$censor, k = 5)
+knn_predictions <- as.numeric(knn_model == "1")
+
+# Fit a decision tree model
+tree_model <- rpart(censor ~ ., data = train_data, method = "class")
+tree_predictions <- predict(tree_model, newdata = test_data, type = "prob")[,2]
+
+# Create a ROC curve for each model
+roc_glm <- roc(test_data$censor, glm_predictions)
+roc_rf <- roc(test_data$censor, rf_predictions)
+roc_knn <- roc(test_data$censor, knn_predictions)
+roc_tree <- roc(test_data$censor, tree_predictions)
+
+# Plot the ROC curves
+plot(roc_glm, col = "#9B59B6", type = "S", main = "ROC Curve Comparison")
+lines(roc_rf, col = "#2980B9", type = "S")
+lines(roc_knn, col = "#1ABC9C", type = "S")
+lines(roc_tree, col = "#F39C12", type = "S")
+
+# Add AUC values to the legend
+legend("bottomright", legend = c(paste0("Logistic Regression (AUC = ", round(auc(roc_glm), 3), ")"),
+                                 paste0("Random Forest (AUC = ", round(auc(roc_rf), 3), ")"),
+                                 paste0("KNN (AUC = ", round(auc(roc_knn), 3), ")"),
+                                 paste0("Decision Tree (AUC = ", round(auc(roc_tree), 3), ")")),
+       col = c("#9B59B6", "#2980B9", "#1ABC9C", "#F39C12"), lty = 1, cex = 0.8)
+
+
+```
+
+
+## Feature Selection
+```{r}
+# Intercept only
+nothing <- glm(censor ~ 1, data=train_data, family="binomial")
+# All predictors
+fullmod <- glm(censor ~ ., data = train_data, family = "binomial")
+# Forward Selection
+forwards = step(nothing, scope=list(lower=formula(nothing),upper=formula(fullmod)), direction="forward")
+```
+
+
+## Final Model: Censor ~ AGE + CHF + BMI + SHO + AV3
+```{r}
+# Fit the logistic regression model
+glm_fit <- glm(censor ~ age + chf + bmi + sho + av3, data = train_data, family = "binomial")
+
+# Calculate the ROC curve and AUC
+glm_roc <- roc(test_data$censor, predict(glm_fit, newdata = test_data), levels = rev(levels(test_data$censor)))
+
+# Extract the coefficients and their standard errors
+coef_df <- data.frame(coef = coef(glm_fit), se = summary(glm_fit)$coefficients[, 2])
+
+# Modify the coef_df dataframe
+coef_df <- coef_df %>% 
+  mutate(feature = rownames(coef_df),
+         abs_coef = abs(coef)) %>% 
+  filter(feature != "(Intercept)") %>% 
+  arrange(abs_coef)
+coef_df <- coef_df %>% 
+  mutate(feature_name = case_when(
+    feature == "age" ~ "Age at hospital admission (years)",
+    feature == "gender" ~ "Gender (0: Male / 1: Female)",
+    feature == "hr" ~ "Initial heart rate (beats per minute)",
+    feature == "sysbp" ~ "Initial systolic blood pressure (mmHg)",
+    feature == "diasbp" ~ "Initial diastolic blood pressure (mmHg)",
+    feature == "bmi" ~ "Body Mass Index (kg/m2)",
+    feature == "cvd" ~ "History of cardiovascular disease (0: No / 1: Yes)",
+    feature == "afb" ~ "Atrial fibrillation (0: No / 1: Yes)",
+    feature == "sho" ~ "Cardiogenic shock (0: No / 1: Yes)",
+    feature == "chf" ~ "Congestive heart complications (0: No / 1: Yes)",
+    feature == "av3" ~ "Complete heart block (0: No / 1: Yes)",
+    feature == "miord" ~ "MI order (0: First / 1: Recurrent)",
+    feature == "mitype" ~ "MI type (0: Non-Q-wave / 1: Q-wave)",
+    feature == "los" ~ "Length of hospital stay",
+    TRUE ~ feature
+  ))
+rownames(coef_df) <- NULL
+
+coef_df$feature_name <- factor(coef_df$feature_name, levels = coef_df$feature_name)
+
+# Create the bar chart to show feature importance
+ggplot(coef_df, aes(feature_name, abs_coef)) + 
+  geom_col() + 
+  coord_flip()+
+  labs(title = "Feature Importance of Logistic Regression Model",
+       x = "Absolute Coefficient Estimate",
+       y = "Predictor Variable")
+
+# AUC
+glm_auc <- auc(glm_roc)
+
+# Plot the ROC curve with AUC
+plot(glm_roc, main = "ROC Curve for Final Logistic Regression")
+text(0.7, 0.3, paste("AUC =", round(glm_auc, 4)), cex = 1.5)
+abline(a = 0, b = 1, lty = 2)
+```
