@@ -1,4 +1,4 @@
-# sharing_projects
+# Sharing Projects
 Personal Website: https://www.jialinwu.net
 
 ## Python
