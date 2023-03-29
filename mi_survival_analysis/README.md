@@ -3,6 +3,8 @@ Survival analysis is used to analyze time-to-event data and to identify factors 
 
 ## Project
 
+[R code HTML version](https://htmlpreview.github.io/?https://github.com/jialinwujw/sharing_projects/blob/main/mi_survival_analysis/mi_survival_analysis.html)
+
 ### Data
 The data set available from the R Package (smoothHR), including 500 observations with 22 variables.
 For my analysis, I created two response variables: 
@@ -34,7 +36,3 @@ Assess which covariates are the most strongly associated with the outcome, and t
   - Make predictions about survival probabilities for new individuals
 * **Logistic Regression (Censor)**
   - Identify all patients who are at risk of death
-  
- 
-### HTML Version
-https://htmlpreview.github.io/?https://github.com/jialinwujw/sharing_projects/blob/main/mi_survival_analysis/mi_survival_analysis.html
