@@ -34,3 +34,7 @@ Assess which covariates are the most strongly associated with the outcome, and t
   - Make predictions about survival probabilities for new individuals
 * **Logistic Regression (Censor)**
   - Identify all patients who are at risk of death
+  
+ 
+### HTML Version
+https://htmlpreview.github.io/?https://github.com/jialinwujw/sharing_projects/blob/main/mi_survival_analysis/mi_survival_analysis.html
