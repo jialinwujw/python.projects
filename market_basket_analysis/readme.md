@@ -4,7 +4,7 @@ Utilize market basket analysis to identify customer purchase patterns to increas
 Its primary objective is to identify products and categories that are more likely to be purchased together.
 
 ## Project
-[Python code HTML version](https://htmlpreview.github.io/?https://github.com/jialinwujw/sharing_projects/blob/main/market_basket_analysis/market_basket_analysis.html)
+[Python code HTML version](https://htmlpreview.github.io/?https://github.com/jialinwujw/python.projects/blob/main/market_basket_analysis/market_basket_analysis.html)
 
 ### Data
 https://www.kaggle.com/sulmansarwar/transactions-from-a-bakery
