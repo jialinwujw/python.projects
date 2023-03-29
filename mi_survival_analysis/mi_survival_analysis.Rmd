@@ -1,13 +1,10 @@
 ---
 title: "Myocardial Infarction (MI) Survival Analysis"
-subtitle: ""
-author: "Jialin (Evelyn) Wu"
-date: "`r format(Sys.Date(), '%B %d, %Y')`"
 output:
   html_document:
     df_print: paged
     toc: yes
-    toc_depth: 3
+    toc_depth: 2
     number_sections: no
     toc_float:
       collapsed: no
@@ -48,8 +45,6 @@ head(whas500)
 # Background
 
 A group of researchers in the Department of Cardiology at the University of Massachusetts Medical School has collected data from 500 myocardial infarction (MI) patients from 1975 to 2001 in Worcester, Massachusetts. This project aims to identify factors associated with survival rate after hospitalization for acute MI.
-
-Myocardial Infarction (MI) = Heart Attack
 
 -   id: Patient ID
 -   age: Age at hospital admission in years
