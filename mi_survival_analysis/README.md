@@ -21,11 +21,10 @@ library(tidyr)
 library(ggplot2)
 library(survival)
 library(survminer)
-library(ggfortify) # Hazard Ratio table and plot
-library(pROC) # ROC Curve
-library(randomForest) # Random Forest
-library(class) # KNN
-library(rpart) # Decision Tree
+library(ggfortify) # Hazard ratio table and plot
+library(pROC) # ROC curve
+
+library(smoothHR) # Data
 ```
 
 ### Outputs
