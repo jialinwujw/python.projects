@@ -19,10 +19,14 @@ This dataset includes the transaction date, the transaction ID, and the items pu
 ```sh
 import pandas as pd
 import numpy as np
+import warnings
+warnings.filterwarnings('ignore')
 
 import matplotlib.pyplot as plt
 %matplotlib inline
 import seaborn as sns
+
+from mlxtend.frequent_patterns import apriori, association_rules
 ```
 
 ### Outputs
