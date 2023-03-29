@@ -19,14 +19,13 @@ Myocardial Infarction (MI) = Heart Attack
 library(dplyr)
 library(tidyr)
 library(ggplot2)
-library(tidyverse)
 library(survival)
 library(survminer)
-library(pROC)
-library(randomForest)
-library(caret)
-library(class)
-library(rpart)
+library(ggfortify) # Hazard Ratio table and plot
+library(pROC) # ROC Curve
+library(randomForest) # Random Forest
+library(class) # KNN
+library(rpart) # Decision Tree
 ```
 
 ### Outputs
