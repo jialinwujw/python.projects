@@ -1,7 +1,5 @@
 # About The Analysis
-This project utilizes a dataset of blood smear images to perform malaria detection.<br>
-It classifies blood smears into two categories: parasitized (infected with the malaria parasite Plasmodium) and uninfected (normal, uninfected red blood cells).<br>
-The primary goal is to assist in automated malaria diagnosis.
+Medical image analysis leverages advanced machine learning techniques to extract critical diagnostic information from complex medical images, enabling more precise disease detection and treatment planning, and finds applications across diverse domains, including radiology, pathology, and oncology, to drive data-driven decisions and advancements in healthcare.
 
 ## Project
 [Python code HTML version](https://htmlpreview.github.io/?https://github.com/jialinwujw/python.projects/blob/main/medical_image_analysis/medical_image_analysis.html)
